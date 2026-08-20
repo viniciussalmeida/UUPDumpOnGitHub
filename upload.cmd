@@ -83,9 +83,14 @@ if not defined SERVER (
     exit /b 1
 )
 
+set "UPLOAD_URL=https://!SERVER!.gofile.io/uploadFile"
+if /i not "!SERVER:.gofile.io=!"=="!SERVER!" (
+    set "UPLOAD_URL=https://!SERVER!/uploadFile"
+)
+
 :: Upload the file with a progress bar
 echo Uploading file, please wait...
-curl -fS --progress-bar -F "file=@%FILE%" "https://!SERVER!.gofile.io/uploadFile" -o "%UPLOAD_JSON%"
+curl -fS --progress-bar -F "file=@%FILE%" "!UPLOAD_URL!" -o "%UPLOAD_JSON%"
 if errorlevel 1 (
     echo ERROR: Upload request failed.
     if "%DEBUG%"=="1" if exist "%UPLOAD_JSON%" type "%UPLOAD_JSON%"
@@ -133,5 +138,6 @@ pause
 exit /b 0
 
 :cleanup
-del "%SERVER_JSON%" "%UPLOAD_JSON%" >nul 2>&1
+del "%SERVER_JSON%" >nul 2>&1
+del "%UPLOAD_JSON%" >nul 2>&1
 exit /b 0
