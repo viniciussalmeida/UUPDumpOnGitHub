@@ -3,6 +3,8 @@ setlocal enabledelayedexpansion
 
 :: Debug Mode (set to 1 to enable)
 set "DEBUG=0"
+set "SERVER_JSON=%TEMP%\gofile_server_%RANDOM%%RANDOM%.json"
+set "UPLOAD_JSON=%TEMP%\gofile_upload_%RANDOM%%RANDOM%.json"
 
 :: Check if curl is installed
 where curl >nul 2>&1
@@ -37,17 +39,33 @@ if not exist "%FILE%" (
 )
 
 :: Query GoFile API for the best server
-for /f "delims=" %%i in ('curl -s https://api.gofile.io/servers') do (
-    set "SERVER_RESPONSE=%%i"
+echo Getting GoFile upload server...
+curl -fsS "https://api.gofile.io/getServer" -o "%SERVER_JSON%"
+if errorlevel 1 (
+    echo ERROR: Failed to query GoFile server API.
+    call :cleanup
+    pause
+    exit /b 1
 )
 
 :: Debug: Show API response
 if "%DEBUG%"=="1" (
-    echo Server Response: !SERVER_RESPONSE!
+    echo Server Response:
+    type "%SERVER_JSON%"
+)
+
+:: Validate JSON before parsing it
+jq -e . "%SERVER_JSON%" >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: GoFile server API returned invalid JSON.
+    call :cleanup
+    pause
+    exit /b 1
 )
 
 :: Extract the correct server name
-for /f "delims=" %%i in ('echo !SERVER_RESPONSE! ^| jq -r ".data.servers[0].name"') do (
+set "SERVER="
+for /f "usebackq delims=" %%i in (`jq -re ".data.server // .data.servers[0].name // empty" "%SERVER_JSON%" 2^>nul`) do (
     set "SERVER=%%i"
 )
 
@@ -57,31 +75,56 @@ if "%DEBUG%"=="1" (
 )
 
 :: Check if server was retrieved
-if "!SERVER!"=="" (
+if not defined SERVER (
     echo ERROR: Failed to retrieve a server from GoFile API.
+    if "%DEBUG%"=="1" type "%SERVER_JSON%"
+    call :cleanup
     pause
     exit /b 1
 )
 
+set "UPLOAD_URL=https://!SERVER!.gofile.io/uploadFile"
+if /i not "!SERVER!"=="!SERVER:.gofile.io=!" (
+    set "UPLOAD_URL=https://!SERVER!/uploadFile"
+)
+
 :: Upload the file with a progress bar
 echo Uploading file, please wait...
-for /f "delims=" %%i in ('curl --progress-bar -F "file=@%FILE%" https://!SERVER!.gofile.io/uploadFile') do (
-    set "UPLOAD_RESPONSE=%%i"
+curl -fS --progress-bar -F "file=@%FILE%" "!UPLOAD_URL!" -o "%UPLOAD_JSON%"
+if errorlevel 1 (
+    echo ERROR: Upload request failed.
+    if "%DEBUG%"=="1" if exist "%UPLOAD_JSON%" type "%UPLOAD_JSON%"
+    call :cleanup
+    pause
+    exit /b 1
 )
 
 :: Debug: Show upload response
 if "%DEBUG%"=="1" (
-    echo Upload Response: !UPLOAD_RESPONSE!
+    echo Upload Response:
+    type "%UPLOAD_JSON%"
+)
+
+:: Validate JSON before parsing it
+jq -e . "%UPLOAD_JSON%" >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: Upload API returned invalid JSON.
+    call :cleanup
+    pause
+    exit /b 1
 )
 
 :: Extract the download link
-for /f "delims=" %%i in ('echo !UPLOAD_RESPONSE! ^| jq -r ".data.downloadPage"') do (
+set "LINK="
+for /f "usebackq delims=" %%i in (`jq -re ".data.downloadPage // empty" "%UPLOAD_JSON%" 2^>nul`) do (
     set "LINK=%%i"
 )
 
 :: Check if upload was successful
-if "!LINK!"=="" (
+if not defined LINK (
     echo ERROR: Upload failed or download link not retrieved.
+    if "%DEBUG%"=="1" type "%UPLOAD_JSON%"
+    call :cleanup
     pause
     exit /b 1
 )
@@ -90,4 +133,11 @@ if "!LINK!"=="" (
 echo.
 echo Upload successful! Download link:
 echo !LINK!
+call :cleanup
 pause
+exit /b 0
+
+:cleanup
+del "%SERVER_JSON%" >nul 2>&1
+del "%UPLOAD_JSON%" >nul 2>&1
+exit /b 0
