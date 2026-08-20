@@ -39,7 +39,7 @@ if not exist "%FILE%" (
 
 :: Upload the file with a progress bar
 echo Uploading file, please wait...
-curl -fS --progress-bar -F "file=@%FILE%" "https://api.gofile.io/uploadFile" -o "%UPLOAD_JSON%"
+curl -fS --progress-bar -F "file=@%FILE%" "https://upload.gofile.io/uploadFile" -o "%UPLOAD_JSON%"
 if errorlevel 1 (
     echo ERROR: Upload request failed.
     if "%DEBUG%"=="1" if exist "%UPLOAD_JSON%" type "%UPLOAD_JSON%"
