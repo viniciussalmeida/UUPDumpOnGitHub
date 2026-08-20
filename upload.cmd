@@ -3,7 +3,6 @@ setlocal enabledelayedexpansion
 
 :: Debug Mode (set to 1 to enable)
 set "DEBUG=0"
-set "SERVER_JSON=%TEMP%\gofile_server_%RANDOM%%RANDOM%.json"
 set "UPLOAD_JSON=%TEMP%\gofile_upload_%RANDOM%%RANDOM%.json"
 
 :: Check if curl is installed
@@ -38,59 +37,9 @@ if not exist "%FILE%" (
     exit /b 1
 )
 
-:: Query GoFile API for the best server
-echo Getting GoFile upload server...
-curl -fsS "https://api.gofile.io/getServer" -o "%SERVER_JSON%"
-if errorlevel 1 (
-    echo ERROR: Failed to query GoFile server API.
-    call :cleanup
-    pause
-    exit /b 1
-)
-
-:: Debug: Show API response
-if "%DEBUG%"=="1" (
-    echo Server Response:
-    type "%SERVER_JSON%"
-)
-
-:: Validate JSON before parsing it
-jq -e . "%SERVER_JSON%" >nul 2>&1
-if errorlevel 1 (
-    echo ERROR: GoFile server API returned invalid JSON.
-    call :cleanup
-    pause
-    exit /b 1
-)
-
-:: Extract the correct server name
-set "SERVER="
-for /f "usebackq delims=" %%i in (`jq -re ".data.server // .data.servers[0].name // empty" "%SERVER_JSON%" 2^>nul`) do (
-    set "SERVER=%%i"
-)
-
-:: Debug: Show selected server
-if "%DEBUG%"=="1" (
-    echo Selected Server: !SERVER!
-)
-
-:: Check if server was retrieved
-if not defined SERVER (
-    echo ERROR: Failed to retrieve a server from GoFile API.
-    if "%DEBUG%"=="1" type "%SERVER_JSON%"
-    call :cleanup
-    pause
-    exit /b 1
-)
-
-set "UPLOAD_URL=https://!SERVER!.gofile.io/uploadFile"
-if /i not "!SERVER!"=="!SERVER:.gofile.io=!" (
-    set "UPLOAD_URL=https://!SERVER!/uploadFile"
-)
-
 :: Upload the file with a progress bar
 echo Uploading file, please wait...
-curl -fS --progress-bar -F "file=@%FILE%" "!UPLOAD_URL!" -o "%UPLOAD_JSON%"
+curl -fS --progress-bar -F "file=@%FILE%" "https://api.gofile.io/uploadFile" -o "%UPLOAD_JSON%"
 if errorlevel 1 (
     echo ERROR: Upload request failed.
     if "%DEBUG%"=="1" if exist "%UPLOAD_JSON%" type "%UPLOAD_JSON%"
@@ -138,6 +87,5 @@ pause
 exit /b 0
 
 :cleanup
-del "%SERVER_JSON%" >nul 2>&1
 del "%UPLOAD_JSON%" >nul 2>&1
 exit /b 0
