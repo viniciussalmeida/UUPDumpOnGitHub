@@ -84,7 +84,7 @@ if not defined SERVER (
 )
 
 set "UPLOAD_URL=https://!SERVER!.gofile.io/uploadFile"
-if /i not "!SERVER:.gofile.io=!"=="!SERVER!" (
+if /i not "!SERVER!"=="!SERVER:.gofile.io=!" (
     set "UPLOAD_URL=https://!SERVER!/uploadFile"
 )
 
