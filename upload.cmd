@@ -65,7 +65,7 @@ if errorlevel 1 (
 
 :: Extract the correct server name
 set "SERVER="
-for /f "usebackq delims=" %%i in (`jq -re ".data.server // empty" "%SERVER_JSON%" 2^>nul`) do (
+for /f "usebackq delims=" %%i in (`jq -re ".data.server // .data.servers[0].name // empty" "%SERVER_JSON%" 2^>nul`) do (
     set "SERVER=%%i"
 )
 
